@@ -55,6 +55,14 @@ const User = sequelize.define('User', {
     balance: {
         type: DataTypes.DECIMAL(15, 2),
         defaultValue: 0.00
+    },
+    resetPasswordOTP: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    resetPasswordExpires: {
+        type: DataTypes.DATE,
+        allowNull: true
     }
 }, {
     hooks: {

@@ -4,6 +4,9 @@ const { User } = require('../models');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const sendEmail = require('../utils/sendEmail');
+const crypto = require('crypto');
+
 
 // Register User
 router.post('/register', async (req, res) => {
@@ -174,6 +177,106 @@ router.post('/google-login', async (req, res) => {
     } catch (error) {
         console.error("GOOGLE LOGIN ERROR:", error);
         res.status(500).json({ message: 'Server error: ' + error.message });
+    }
+});
+
+// Forgot Password
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ where: { email } });
+        
+        if (!user) {
+            return res.status(404).json({ message: 'User with this email does not exist' });
+        }
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Hash OTP and save to DB
+        const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+        
+        await user.update({
+            resetPasswordOTP: hashedOTP,
+            resetPasswordExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
+        });
+
+        // Send OTP to email
+        const message = `Your password reset code is: ${otp}\nThis code is valid for 10 minutes.\nIf you did not request this, please ignore this email.`;
+        
+        try {
+            await sendEmail({
+                email: user.email,
+                subject: 'Password Reset OTP - YatraHub',
+                message,
+            });
+            res.status(200).json({ message: 'OTP sent to email successfully' });
+        } catch (err) {
+            console.error('Email send error:', err);
+            await user.update({ resetPasswordOTP: null, resetPasswordExpires: null });
+            return res.status(500).json({ message: 'Failed to send OTP email.' });
+        }
+
+    } catch (error) {
+        console.error('FORGOT PASSWORD ERROR:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+// Verify OTP
+router.post('/verify-otp', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        
+        const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+
+        const user = await User.findOne({ 
+            where: { 
+                email,
+                resetPasswordOTP: hashedOTP
+            } 
+        });
+
+        if (!user || user.resetPasswordExpires < Date.now()) {
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
+
+        res.status(200).json({ message: 'OTP verified successfully' });
+    } catch (error) {
+        console.error('VERIFY OTP ERROR:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+// Reset Password
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        
+        const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+
+        const user = await User.findOne({ 
+            where: { 
+                email,
+                resetPasswordOTP: hashedOTP
+            } 
+        });
+
+        if (!user || user.resetPasswordExpires < Date.now()) {
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
+
+        // Update password and clear OTP
+        await user.update({
+            password: newPassword,
+            resetPasswordOTP: null,
+            resetPasswordExpires: null
+        });
+
+        res.status(200).json({ message: 'Password reset completely successful' });
+    } catch (error) {
+        console.error('RESET PASSWORD ERROR:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 
