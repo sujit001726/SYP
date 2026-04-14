@@ -8,7 +8,11 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 
 import './index.css'
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID_HERE"
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+
+if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === "YOUR_GOOGLE_CLIENT_ID_HERE") {
+  console.error("Google Client ID not configured. Please set VITE_GOOGLE_CLIENT_ID in your .env file.");
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -19,7 +23,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <App />
           </SocketProvider>
         </AuthProvider>
-
       </GoogleOAuthProvider>
     </BrowserRouter>
   </React.StrictMode>,

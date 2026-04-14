@@ -38,7 +38,7 @@ const FleetListing = () => {
             try {
                 // Determine vehicle type for API filter
                 const type = category === 'cars' ? 'Car' : 'Bike';
-                const data = await vehicleService.getAll({ category: type });
+                const data = await vehicleService.getAll({ type: type });
                 setVehicles(data || []);
             } catch (err) {
                 console.error("Failed to fetch fleet:", err);

@@ -30,9 +30,78 @@ const VEHICLE_ASSETS = {
     'Honda Dio': dioImg
 };
 
+const DEFAULT_VEHICLES = [
+    {
+        id: 'default-scorpio',
+        name: 'Mahindra Scorpio S11',
+        type: 'SUV/off-roading',
+        category: 'SUV/Off-Roading',
+        brand: 'Mahindra',
+        pricePerDay: 12000,
+        images: [scorpioImg],
+        features: ['5 Seats', '4x4', 'Verified'],
+        owner: { username: 'ElitePartner' },
+        location: 'Kathmandu',
+        description: 'Premium off-road SUV for all Nepal terrain.'
+    },
+    {
+        id: 'default-hilux',
+        name: 'Toyota Hilux Adventure',
+        type: 'Car',
+        category: 'Car',
+        brand: 'Toyota',
+        pricePerDay: 14000,
+        images: [toyotaImg],
+        features: ['4 Seats', 'Comfort', 'Verified'],
+        owner: { username: 'ElitePartner' },
+        location: 'Pokhara',
+        description: 'Luxury pickup built for long journeys and rugged roads.'
+    },
+    {
+        id: 'default-enfield',
+        name: 'Royal Enfield 350',
+        type: 'Bike',
+        category: 'Bike',
+        brand: 'Royal Enfield',
+        pricePerDay: 4000,
+        images: [bulletImg],
+        features: ['2 Seats', 'Classic', 'Verified'],
+        owner: { username: 'ElitePartner' },
+        location: 'Kathmandu',
+        description: 'Classic motorcycle experience for city and mountain rides.'
+    },
+    {
+        id: 'default-ns',
+        name: 'Bajaj Pulsar NS200',
+        type: 'Bike',
+        category: 'Bike',
+        brand: 'Bajaj',
+        pricePerDay: 3200,
+        images: [nsImg],
+        features: ['2 Seats', 'Sporty', 'Verified'],
+        owner: { username: 'ElitePartner' },
+        location: 'Lalitpur',
+        description: 'Sporty bike perfect for fast rides and short trips.'
+    },
+    {
+        id: 'default-dio',
+        name: 'Honda Dio',
+        type: 'Scooter',
+        category: 'Scooter',
+        brand: 'Honda',
+        pricePerDay: 2200,
+        images: [dioImg],
+        features: ['2 Seats', 'Easy', 'Verified'],
+        owner: { username: 'ElitePartner' },
+        location: 'Baneshwor',
+        description: 'Comfortable city scooter for quick and efficient travel.'
+    }
+];
+
 function Home() {
     const { user, logout } = useAuth();
     const { unreadCount, socket, unreadNotiCount } = useSocket();
+    const navigate = useNavigate();
 
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -76,11 +145,14 @@ function Home() {
         setLoadingVehicles(true);
         try {
             const data = await vehicleService.getAll(filters);
-            // Merge: keep static vehicles, add DB vehicles that aren't duplicates by name
-            setVehicles(data);
+            if (Array.isArray(data) && data.length > 0) {
+                setVehicles(data);
+            } else {
+                setVehicles(DEFAULT_VEHICLES);
+            }
         } catch (error) {
             console.error("Failed to fetch vehicles:", error);
-            // Keep static vehicles even if API fails
+            setVehicles(DEFAULT_VEHICLES);
         } finally {
             setLoadingVehicles(false);
         }
@@ -110,12 +182,39 @@ function Home() {
         setSearchQuery('');
     };
 
+    const isVehicleVisible = (v) => {
+        // Allow seeded vehicles even if owned by ElitePartner
+        // if (v.owner?.username?.toLowerCase() === 'elitepartner') return false;
+
+        if (activeType !== 'All') {
+            const type = (v.type || v.category || '').toLowerCase();
+            const active = activeType.toLowerCase();
+            if (active === 'car') return ['car', 'sedan'].includes(type);
+            if (active === 'suv/off-roading') return ['suv', 'suv/off-roading'].includes(type);
+            if (active === 'bike') return ['bike', 'motorcycle'].includes(type);
+            if (active === 'scooter') return ['scooter', 'moped'].includes(type);
+            if (active === 'luxury') return ['luxury', 'elite', 'premium', 'luxury vehicle'].includes(type);
+            return type === active;
+        }
+
+        const img = v.images && (Array.isArray(v.images) ? v.images[0] : v.images);
+        const fallbackSrc = VEHICLE_ASSETS[v.name];
+        if (!img && !fallbackSrc) return false;
+        if (!img) return true;
+        if (typeof img !== 'string') return true;
+        if (img.startsWith('http') || img.startsWith('blob:') || img.startsWith('data:')) return true;
+        if (img.startsWith('/uploads/') || img.startsWith('/src/')) return true;
+        return img.length > 5;
+    };
+
     // Search results come from vehicles state (already includes static + DB)
     const searchResults = searchQuery.trim().length > 0
         ? vehicles
             .filter(v => v.owner?.username?.toLowerCase() !== 'elitepartner')
             .filter(v => v.name?.toLowerCase().includes(searchQuery.toLowerCase()))
         : [];
+
+    const visibleFleetVehicles = vehicles.filter(isVehicleVisible);
 
     const openMap = (target, title) => {
         setMapConfig({ isOpen: true, target, title });
@@ -794,29 +893,11 @@ function Home() {
                             area.scrollLeft = parseFloat(area.dataset.scrollLeftStart) - walk;
                         }}
                     >
-                        {vehicles.filter(v => v.owner?.username?.toLowerCase() !== 'elitepartner').filter(v => {
-                            if (activeType === 'All') return true;
-                            const type = v.type?.toLowerCase() || '';
-                            const active = activeType.toLowerCase();
-                            if (active === 'car') return ['car', 'sedan'].includes(type);
-                            if (active === 'suv/off-roading') return ['suv', 'suv/off-roading'].includes(type);
-                            if (active === 'bike') return ['bike', 'motorcycle'].includes(type);
-                            if (active === 'scooter') return ['scooter', 'moped'].includes(type);
-                            if (active === 'luxury') return ['luxury', 'elite', 'premium', 'luxury vehicle'].includes(type);
-                            return type === active;
-                        }).filter(v => {
-                            // Remove cards with no usable image
-                            const img = v.images && (Array.isArray(v.images) ? v.images[0] : v.images);
-                            if (!img) return false;
-                            // If it's a local asset object (imported), always show
-                            if (typeof img !== 'string') return true;
-                            // If it's a full URL or a local /src/ path that's a known import, show
-                            if (img.startsWith('http') || img.startsWith('blob:') || img.startsWith('data:')) return true;
-                            // If it's a server upload path, only show if it has an extension (not a broken text alt)
-                            if (img.startsWith('/uploads/') || img.startsWith('/src/')) return true;
-                            // Otherwise filter out (e.g. empty string, broken path)
-                            return img.length > 5;
-                        }).map((v, i) => {
+                        {visibleFleetVehicles.length === 0 ? (
+                            <div style={{ color: '#94a3b8', padding: '50px 20px', textAlign: 'center', width: '100%' }}>
+                                No vehicles are available right now. Try changing the category or refresh the page.
+                            </div>
+                        ) : visibleFleetVehicles.map((v, i) => {
                             // Normalize price display
                             const displayPrice = typeof v.pricePerDay === 'string' && v.pricePerDay.includes('.') ? v.pricePerDay :
                                 (parseFloat(v.pricePerDay) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
@@ -829,6 +910,8 @@ function Home() {
                                     whileInView={{ opacity: 1, y: 0, scale: 1 }}
                                     viewport={{ once: true, margin: "-50px" }}
                                     transition={{ duration: 0.3, delay: (v.id && typeof v.id === 'string' && v.id.startsWith('s')) ? i * 0.05 : 0 }}
+                                    onClick={() => openVehicleModal(v, 'reserve')}
+                                    style={{ cursor: 'pointer' }}
                                 >
                                     <div className="card-top" style={{ position: 'relative' }}>
                                         <span className="vehicle-badge">{v.type}</span>
@@ -987,15 +1070,14 @@ function Home() {
                                             src={
                                                 (v.images && v.images.length > 0)
                                                     ? getImageUrl(Array.isArray(v.images) ? v.images[0] : v.images)
-                                                    : (VEHICLE_ASSETS[v.name] || '/src/assets/Car.png')
+                                                    : (VEHICLE_ASSETS[v.name] || '/src/assets/logo.png')
                                             }
                                             alt={v.name}
                                             className="vehicle-img-main"
                                             draggable="false"
                                             onError={(e) => {
-                                                // Hide the entire card if image fails to load
-                                                const card = e.target.closest('.vehicle-card');
-                                                if (card) card.style.display = 'none';
+                                                e.target.onerror = null;
+                                                e.target.src = VEHICLE_ASSETS[v.name] || '/src/assets/Car.png';
                                             }}
                                         />
                                     </div>
@@ -1288,7 +1370,10 @@ function Home() {
                                                             {imgSrc && (
                                                                 <img src={imgSrc} alt={v.name}
                                                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                                    onError={e => e.target.style.display = 'none'}
+                                                                    onError={(e) => {
+                                                                        e.target.onerror = null;
+                                                                        e.target.src = '/src/assets/Car.png';
+                                                                    }}
                                                                 />
                                                             )}
                                                         </div>

@@ -37,7 +37,7 @@ const RideListing = () => {
                 // Determine vehicle type for API filter
                 const type = category === 'cars' ? 'Car' : 'Bike';
                 const data = await vehicleService.getAll({
-                    category: type,
+                    type: type,
                     serviceType: 'ride'
                 });
                 setVehicles(data || []);
